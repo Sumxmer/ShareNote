@@ -1,0 +1,93 @@
+# =====================================================
+# รันโปรเจค NoteShare ด้วย Docker (ไม่ต้องติดตั้ง PHP/MySQL ลงเครื่อง)
+#
+#   1) cp .env.example .env      แล้วแก้รหัสผ่านในไฟล์ .env ให้เป็นของจริง
+#   2) docker compose up -d --build
+#   3) เปิด http://localhost:8000
+#
+# phpMyAdmin ไม่ได้รันมาให้อัตโนมัติ (เพื่อความปลอดภัย) ถ้าต้องการใช้:
+#   docker compose --profile tools up -d phpmyadmin
+#   แล้วเปิด http://127.0.0.1:8080  (เข้าได้เฉพาะจากเครื่องนี้เท่านั้น ไม่เปิดสู่อินเทอร์เน็ต)
+# =====================================================
+services:
+  web:
+    build: .
+    container_name: noteshare-web
+    ports:
+      - "8000:80"
+    volumes:
+      # mount โค้ดทั้งโปรเจคเข้า Apache document root (แก้โค้ดแล้วเห็นผลทันทีไม่ต้อง rebuild)
+      # หมายเหตุด้านความปลอดภัย: การ mount แบบนี้ทำให้ docker-compose.yml, Dockerfile, .env
+      # และ database/*.sql อยู่ในเว็บรูทไปด้วย จึงต้องมี .htaccess ที่รากโปรเจคปิดกั้นไว้
+      # (และ Dockerfile ตั้ง AllowOverride All เพื่อให้ .htaccess ทำงานจริง)
+      - .:/var/www/html
+    environment:
+      # ใน network ของ compose ค่าอ้างถึง service ฐานข้อมูลคือชื่อ service ("db")
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-sheetapp_db}
+      DB_USER: ${DB_USER:-sheetapp_user}
+      DB_PASS: ${DB_PASSWORD:-ChangeThisPassword!123}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  # ------------------------------------------------------------
+  # phpMyAdmin — ไม่ได้อยู่ใน profile เริ่มต้น จะไม่ถูกสร้าง/รันตอน `docker compose up`
+  # ต้องสั่งเปิดเองด้วย: docker compose --profile tools up -d phpmyadmin
+  # และ bind กับ 127.0.0.1 เท่านั้น (เข้าได้แค่จากเครื่องที่รัน docker ไม่เปิดออก network ภายนอก)
+  # ------------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: noteshare-phpmyadmin
+    profiles: ["tools"]     # <-- opt-in เท่านั้น ห้ามเอาบรรทัดนี้ออกตอน deploy จริง/นำเสนอผ่านเน็ต
+    ports:
+      - "127.0.0.1:8080:80"   # bind เฉพาะ loopback: คนนอกเครื่อง (แม้อยู่ใน LAN เดียวกัน) เข้าไม่ได้
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: "0"          # ห้ามพิมพ์ host ฐานข้อมูลอื่นเอง (ล็อกให้ต่อ "db" เท่านั้น)
+      PMA_BLOWFISH_SECRET: ${PMA_BLOWFISH_SECRET:-please_change_this_to_a_random_32_char_string}
+      UPLOAD_LIMIT: 32M
+      # ไม่ตั้ง PMA_USER/PMA_PASSWORD ไว้ที่นี่ เพราะจะทำให้เปิดหน้าเว็บแล้วเข้าฐานข้อมูลได้ทันที
+      # โดยไม่ต้องยืนยันตัวตน (ขัดกับหลัก Authentication ของวิชานี้)
+      # ให้ล็อกอินเองที่หน้า phpMyAdmin ด้วย:
+      #   - sheetapp_user / (ค่า DB_PASSWORD ใน .env)   สิทธิ์จำกัดตาม Least Privilege
+      #   - root / (ค่า DB_ROOT_PASSWORD ใน .env)        ใช้เฉพาะตอนตั้งค่า admin คนแรก
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: mysql:8.0
+    container_name: noteshare-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-sheetapp_db}
+      MYSQL_USER: ${DB_USER:-sheetapp_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ChangeThisPassword!123}
+    volumes:
+      - db_data:/var/lib/mysql
+      # สคริปต์ในโฟลเดอร์นี้จะรันอัตโนมัติ "ครั้งแรก" ที่สร้าง volume เท่านั้น
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/app_user_privileges.sql:/docker-entrypoint-initdb.d/02-app-user-privileges.sql:ro
+    ports:
+      # bind เฉพาะ 127.0.0.1: เข้าได้แค่จากเครื่องที่รัน docker เท่านั้น (กันคนนอกสแกนเจอพอร์ต 3307 แล้วเดารหัสต่อ)
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  db_data:

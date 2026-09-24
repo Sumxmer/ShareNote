@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+*.env
+*.rar
+*.zip
+*.log
+uploads/*.pdf
+uploads/*.doc
+uploads/*.docx
+uploads/*.ppt
+uploads/*.pptx
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png

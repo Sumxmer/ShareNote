@@ -1,0 +1,31 @@
+# ============================================================
+# ป้องกันไฟล์ที่ไม่ควรเข้าถึงผ่านเว็บ
+# ------------------------------------------------------------
+# เนื่องจาก docker-compose.yml mount ทั้งโปรเจคเข้า document root
+# ไฟล์อย่าง docker-compose.yml (ที่มีรหัสผ่านฐานข้อมูล) และ database/*.sql
+# จะอยู่ในเว็บรูทด้วย จึงต้องปิดกั้นไม่ให้ดาวน์โหลดได้
+# ============================================================
+
+<FilesMatch "\.(yml|yaml|sql|md|sh|ini|log|bak|old|env)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^(Dockerfile|docker-compose\.yml|\.dockerignore|\.gitignore|\.env|\.env\.example)$">
+    Require all denied
+</FilesMatch>
+
+# ปิดไม่ให้ไล่ดูรายชื่อไฟล์ในโฟลเดอร์
+Options -Indexes
+
+# ซ่อนเวอร์ชัน PHP/Apache จาก response header
+ServerSignature Off
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # จำกัดแหล่งที่มาของ script/style/รูปให้เป็นเว็บนี้เท่านั้น ลดผลกระทบถ้า XSS หลุดผ่านมาจริง
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+    # ปิด browser feature ที่ไม่จำเป็นสำหรับเว็บนี้
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>

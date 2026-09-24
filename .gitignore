@@ -1,0 +1,19 @@
+# ห้าม commit ไฟล์ที่มีรหัสผ่านจริงเด็ดขาด
+.env
+*.env
+!.env.example
+
+# ไฟล์ที่ผู้ใช้อัปโหลดผ่านเว็บ (ไม่ต้องอยู่ใน git)
+uploads/*.pdf
+uploads/*.doc
+uploads/*.docx
+uploads/*.ppt
+uploads/*.pptx
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+!uploads/.gitkeep
+
+# log / temp
+*.log
+.DS_Store

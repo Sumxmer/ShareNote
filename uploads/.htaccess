@@ -1,0 +1,8 @@
+# ป้องกันการรันสคริปต์ใด ๆ ในโฟลเดอร์นี้ แม้จะมีไฟล์หลุดรอดผ่านการตรวจสอบชนิดไฟล์มาได้
+# ไฟล์ในโฟลเดอร์นี้ควรถูกเข้าถึงผ่าน download.php เท่านั้น ไม่ควรเปิดให้ list โดยตรง
+
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|pht|phar)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
