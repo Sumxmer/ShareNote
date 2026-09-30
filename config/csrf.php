@@ -25,8 +25,7 @@ function csrf_token(): string {
  */
 function csrf_verify(): void {
     $token = $_POST['csrf_token'] ?? '';
-    if (empty($token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
-        http_response_code(403);
-        die('คำขอไม่ถูกต้อง (CSRF token ไม่ตรงกันหรือหมดอายุ) กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง');
+    if (!is_string($token) || $token === '' || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        abort_request(403, 'คำขอหมดอายุหรือไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง');
     }
 }

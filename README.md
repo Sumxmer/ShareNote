@@ -20,9 +20,9 @@ docker compose up -d --build
 ## วิธีที่ 2: ติดตั้งเองบนเครื่อง (XAMPP/Laragon)
 
 ### สิ่งที่ต้องมีก่อนติดตั้ง
-- PHP 8.x พร้อม extension `mysqli` และ `fileinfo`
+- PHP 8.3 พร้อม extension `mysqli`, `fileinfo`, `mbstring` และ `zip`
 - MySQL หรือ MariaDB
-- เว็บเซิร์ฟเวอร์ที่รองรับ `.htaccess` และตั้ง `AllowOverride All` (Apache + mod_rewrite/mod_authz_core) หรือปรับ config เทียบเท่าใน Nginx
+- เว็บเซิร์ฟเวอร์ที่รองรับ `.htaccess` และตั้ง `AllowOverride All` (Apache + mod_rewrite/mod_headers/mod_authz_core) หรือปรับ config เทียบเท่าใน Nginx
 
 ### ขั้นตอนติดตั้ง
 
@@ -35,7 +35,12 @@ mysql -u root -p < database/schema.sql
 #### 2. สร้าง Database User เฉพาะระบบ (ห้ามใช้ root)
 ```sql
 CREATE USER 'sheetapp_user'@'localhost' IDENTIFIED BY 'ChangeThisPassword!123';
-GRANT SELECT, INSERT, UPDATE, DELETE ON sheetapp_db.* TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON sheetapp_db.users TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT ON sheetapp_db.subjects TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON sheetapp_db.notes TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT, DELETE ON sheetapp_db.comments TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT ON sheetapp_db.download_logs TO 'sheetapp_user'@'localhost';
+GRANT SELECT, INSERT ON sheetapp_db.security_logs TO 'sheetapp_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 > เปลี่ยนรหัสผ่านให้เป็นของจริง แล้วไปแก้ในไฟล์ `config/db.php` (ค่า `DB_PASS`) ให้ตรงกัน
@@ -55,13 +60,10 @@ chmod 755 uploads
 ```
 โฟลเดอร์นี้ต้องเขียนได้โดย process ของเว็บเซิร์ฟเวอร์ (เช่น www-data)
 
-#### 5. เปิดเว็บผ่าน PHP built-in server (ทดสอบเร็ว ๆ)
-```bash
-php -S localhost:8000
-```
-แล้วเปิดเบราว์เซอร์ไปที่ `http://localhost:8000`
-
-หรือถ้าใช้ Apache/XAMPP ให้ copy โฟลเดอร์นี้ไปไว้ใน `htdocs` แล้วเปิดผ่าน `http://localhost/notesharing`
+#### 5. เปิดเว็บผ่าน Apache
+นำโปรเจคไปไว้ใน `htdocs` ของ XAMPP/Laragon แล้วเปิด `http://localhost/notesharing`
+ต้องเปิด `mod_rewrite`, `mod_headers` และ `AllowOverride All` เพื่อให้กฎป้องกัน `.git`, `config`, `database` และ `uploads` มีผล
+ไม่ใช้ `php -S` เสิร์ฟโฟลเดอร์นี้โดยตรง เพราะไม่อ่าน `.htaccess` และจะเปิดให้เข้าถึงไฟล์ภายในได้
 
 #### 6. สร้างบัญชี Admin คนแรก
 1. สมัครสมาชิกผ่านหน้าเว็บตามปกติ (จะได้ role = 'user')
@@ -110,16 +112,16 @@ notesharing/
 | 4 | Session Security | config/session.php (regenerate_id, timeout, cookie params) |
 | 5 | Database Security | config/db.php (non-root user), database/schema.sql |
 | 6 | SQL Injection Prevention | ทุกไฟล์ที่ query DB ใช้ prepare/bind_param/execute |
-| 7 | Input Validation & Error Handling | config/functions.php (validate_*), mysqli_report(OFF), custom error messages |
+| 7 | Input Validation & Error Handling | config/functions.php (validate_*), mysqli_report(ERROR | STRICT) และตัวจัดการข้อผิดพลาดส่วนกลาง, custom error messages |
 | 8 | XSS Prevention | config/functions.php (ฟังก์ชัน `e()` = htmlspecialchars) ใช้ทุกจุดที่ echo ข้อมูลผู้ใช้ |
 | 9 | CSRF Protection | config/csrf.php + ทุกฟอร์ม POST (upload, edit, delete, comment, admin actions) |
 | 10 | Security Logging | config/functions.php (log_security_event) + ตาราง security_logs + admin/security_logs.php |
 | หมายเหตุ | Upload File Validation | config/functions.php (validate_and_store_upload: extension, MIME, ขนาด, สุ่มชื่อไฟล์) |
 | เสริม | ป้องกัน Brute-force | config/functions.php (is_login_locked_out) + login.php — ล็อกบัญชี/IP ชั่วคราว 15 นาที หลัง login ผิดครบ 5 ครั้ง |
 | เสริม | จำกัดการเข้าถึงเครื่องมือผู้ดูแล | docker-compose.yml — phpMyAdmin bind เฉพาะ 127.0.0.1 และต้องสั่งเปิดเอง (`--profile tools`) |
-| เสริม | ไม่ฝังรหัสผ่านในโค้ด | .env / .env.example — ทุก credential อ่านจาก environment variable ไม่ commit เข้า git |
+| เสริม | ไม่ฝังรหัสผ่านในโค้ด | .env / .env.example — รหัสผ่านจริงอ่านจาก environment variable; ค่าเริ่มต้นมีไว้สำหรับเครื่องทดสอบ |
 | เสริม | HTTP Security Headers | .htaccess (ราก) — Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, ปิด Server banner |
-| เสริม | ไม่มี inline JavaScript | assets/confirm.js — ย้ายจาก `onsubmit="confirm(...)"` มาเป็นไฟล์แยก ทำให้ตั้ง CSP แบบ `script-src 'self'` ได้โดยไม่ต้องเปิด `unsafe-inline` |
+| เสริม | ไม่มี inline JavaScript | assets/app.js — ย้ายจาก `onsubmit="confirm(...)"` มาเป็นไฟล์แยก ทำให้ตั้ง CSP แบบ `script-src 'self'` ได้โดยไม่ต้องเปิด `unsafe-inline` |
 | เสริม | PHP/Apache Hardening | Dockerfile — ปิด allow_url_fopen, disable_functions อันตราย, session hardening, ซ่อนเวอร์ชัน Server |
 
 ## การสาธิตช่องโหว่ตอนนำเสนอ (แนะนำอย่างน้อย 2 เรื่องตามที่โจทย์กำหนด)
@@ -127,3 +129,31 @@ notesharing/
 2. **XSS**: ลองคอมเมนต์ด้วยข้อความ `<script>alert('XSS')</script>` เทียบผลระหว่างก่อน/หลังใช้ `htmlspecialchars()`
 3. **CSRF**: ลองสร้างฟอร์มปลอมจากเว็บอื่นที่ยิง POST ไปยัง delete_note.php โดยไม่มี token ที่ถูกต้อง แล้วแสดงว่าระบบปฏิเสธคำขอ
 4. **Unauthorized Access**: ลอง login เป็น user ทั่วไปแล้วพยายามแก้ไข/ลบชีทของคนอื่นโดยเปลี่ยน note_id ใน URL
+
+## การทดสอบระบบ
+
+```bash
+docker compose build web
+python tests/security_regression.py --image notesharing-web
+```
+
+ชุดทดสอบสร้าง MySQL และเว็บชั่วคราวแยกจากฐานข้อมูลจริง ตรวจการติดตั้งใหม่ สิทธิ์ฐานข้อมูล CRUD การอัปโหลด Authorization, Session, SQL Injection, XSS, CSRF และ Security Logging แล้วเก็บกวาดระบบทดสอบอัตโนมัติ
+เพิ่ม `--keep` เพื่อเปิดตัวอย่างพร้อมข้อมูลสมมติที่ `http://127.0.0.1:18093` ข้อมูลชื่อ container และ network อยู่ใน `tmp/noteshare-check-*/preview.json` เมื่อใช้เสร็จให้ลบเฉพาะ container และ network ที่ระบุในไฟล์นี้
+
+## อัปเดตระบบเดิมโดยเก็บข้อมูลไว้
+
+สคริปต์กำหนดสิทธิ์รันอัตโนมัติเฉพาะฐานข้อมูลใหม่ ถ้ามีข้อมูลเดิม ให้ rebuild เว็บและใช้บัญชีผู้ดูแลฐานข้อมูลรันสคริปต์สิทธิ์อีกครั้ง:
+
+```bash
+docker compose up -d --build
+docker compose exec db mysql -u root -p
+```
+
+จากนั้นภายใน MySQL:
+
+```sql
+SOURCE /docker-entrypoint-initdb.d/02-app-user-privileges.sql;
+SHOW GRANTS FOR 'sheetapp_user'@'%';
+```
+
+ไม่ต้องล้าง volume หรือนำเข้า schema ทับข้อมูลเดิม ชื่อ `DB_NAME` และ `DB_USER` ใน `.env` ต้องตรงกับสคริปต์ SQL (`sheetapp_db` และ `sheetapp_user`)

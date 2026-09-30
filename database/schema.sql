@@ -89,6 +89,8 @@ CREATE TABLE security_logs (
     detail VARCHAR(255),
     ip_address VARCHAR(45),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_login_username (action, username_attempt, created_at),
+    INDEX idx_login_ip (action, ip_address, created_at),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 

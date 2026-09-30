@@ -16,7 +16,7 @@
 cp .env.example .env
 ```
 
-แล้วเปิดไฟล์ `.env` แก้ค่ารหัสผ่านทั้ง 4 ตัวให้เป็นของจริง (อย่าใช้ค่าตัวอย่างที่ให้มา) — โดยเฉพาะก่อนนำไปใช้งานจริงหรือ deploy ขึ้นเซิร์ฟเวอร์ที่เข้าถึงจากอินเทอร์เน็ตได้
+แล้วเปิดไฟล์ `.env` แก้ค่ารหัสผ่านฐานข้อมูลและ secretให้เป็นของจริง (อย่าใช้ค่าตัวอย่างที่ให้มา) — โดยเฉพาะก่อนนำไปใช้งานจริงหรือ deploy ขึ้นเซิร์ฟเวอร์ที่เข้าถึงจากอินเทอร์เน็ตได้
 
 ## วิธีรัน
 
@@ -103,7 +103,7 @@ curl -I http://<server-ip>:8080     # ต้อง connection refused/timeout �
 docker compose logs web | grep noteshare
 ```
 ควรเห็นข้อความ `[noteshare] uploads/ เขียนได้ปกติ`
-ถ้าเห็นคำเตือน ให้รัน `chmod -R 777 uploads` บนเครื่องแล้ว `docker compose restart web`
+ถ้าเห็นคำเตือน ให้รัน `chown -R www-data:www-data uploads && chmod -R 750 uploads` บนเครื่องแล้ว `docker compose restart web`
 
 ทดสอบระบบล็อกบัญชีกัน brute-force: ลอง login ด้วยรหัสผ่านผิด 5 ครั้งติด แล้วลองครั้งที่ 6
 ด้วยรหัสที่ถูกต้อง — ควรถูกปฏิเสธชั่วคราว (ระบบล็อก 15 นาทีหลัง login ผิดครบ 5 ครั้ง)
@@ -113,8 +113,18 @@ docker compose logs web | grep noteshare
 | อาการ | วิธีแก้ |
 |---|---|
 | เข้าเว็บแล้วขึ้น "ขณะนี้ระบบไม่สามารถให้บริการได้" | `docker compose logs db` ดูว่า init เสร็จหรือยัง รอสัก 30 วินาทีแล้วลองใหม่ |
-| อัปโหลดไฟล์ไม่ได้ | `chmod -R 777 uploads` แล้ว `docker compose restart web` |
+| อัปโหลดไฟล์ไม่ได้ | `chown -R www-data:www-data uploads && chmod -R 750 uploads` แล้ว `docker compose restart web` |
 | พอร์ต 8000/8080/3307 ถูกใช้แล้ว | แก้เลขพอร์ตฝั่งซ้ายใน `docker-compose.yml` |
-| แก้ schema.sql แล้วไม่มีผล | init script รันแค่ครั้งแรก ต้อง `docker compose down -v` แล้ว up ใหม่ |
+| แก้ schema.sql แล้วไม่มีผล | init script รันแค่ครั้งแรก ให้ใช้ migration SQL กับข้อมูลเดิม; ล้าง volume เฉพาะเมื่อยืนยันว่าจะทิ้งข้อมูลทั้งหมด |
 | ลืมสร้างไฟล์ `.env` | compose จะใช้ค่า default ที่เขียนไว้ใน `docker-compose.yml` แทน (ปลอดภัยน้อยกว่า) ควรสร้าง `.env` เสมอก่อนใช้งานจริง |
 | Login ถูกบล็อกทั้งที่รหัสถูก | ติด brute-force lockout (login ผิดเกิน 5 ครั้งใน 15 นาที ไม่ว่าจาก username หรือ IP เดียวกัน) รอ 15 นาทีแล้วลองใหม่ |
+
+## อัปเดตสิทธิ์ฐานข้อมูลเดิม
+
+หลัง rebuild ให้รัน `docker compose exec db mysql -u root -p` แล้ว `SOURCE /docker-entrypoint-initdb.d/02-app-user-privileges.sql;` เพื่อใช้สิทธิ์ตามตารางโดยไม่ล้างข้อมูล
+เว็บไม่ใช้บัญชี root; คำสั่งนี้เป็นงานของผู้ดูแลฐานข้อมูลเท่านั้น
+
+## ทดสอบก่อนใช้งาน
+
+`python tests/security_regression.py --image notesharing-web` ทดสอบในระบบแยกที่สร้างขึ้นใหม่ ไม่แตะฐานข้อมูลหรือ volume จริง
+ไฟล์ใน `uploads` และ `/.git/HEAD` ต้องได้ 403; การดาวน์โหลดที่ได้รับอนุญาตต้องผ่าน `download.php` เท่านั้น

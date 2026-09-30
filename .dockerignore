@@ -13,3 +13,6 @@ uploads/*.pptx
 uploads/*.jpg
 uploads/*.jpeg
 uploads/*.png
+
+tmp
+tests

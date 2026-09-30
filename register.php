@@ -15,11 +15,11 @@ $old = ['username' => '', 'email' => '', 'full_name' => ''];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify(); // ข้อ 9: CSRF Protection
 
-    $username = trim($_POST['username'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $fullName = trim($_POST['full_name'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm  = $_POST['confirm_password'] ?? '';
+    $username = trim(input_text($_POST, 'username'));
+    $email    = trim(input_text($_POST, 'email'));
+    $fullName = trim(input_text($_POST, 'full_name'));
+    $password = input_text($_POST, 'password');
+    $confirm  = input_text($_POST, 'confirm_password');
 
     $old = ['username' => $username, 'email' => $email, 'full_name' => $fullName];
 
@@ -54,63 +54,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $stmt->bind_param('ssss', $username, $email, $hash, $fullName);
 
-            if ($stmt->execute()) {
+            $conn->begin_transaction();
+            try {
+                $stmt->execute();
                 $newUserId = $stmt->insert_id;
                 log_security_event($conn, $newUserId, $username, 'REGISTER', 'สมัครสมาชิกใหม่สำเร็จ');
-                $stmt->close();
-                $conn->close();
-
+                $conn->commit(); $stmt->close(); $conn->close();
                 flash('success', 'สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ');
-                header('Location: login.php');
-                exit;
-            } else {
-                error_log('Register insert failed: ' . $stmt->error);
-                $errors[] = 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'; // ไม่แสดง SQL error จริง (ข้อ 7)
+                header('Location: login.php'); exit;
+            } catch (mysqli_sql_exception $error) {
+                $conn->rollback();
+                error_log('Register failed: ' . $error->getMessage());
+                $errors[] = $error->getCode() === 1062 ? 'ชื่อผู้ใช้หรืออีเมลนี้มีผู้ใช้งานแล้ว' : 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่ภายหลัง';
+                $stmt->close();
             }
         }
         $conn->close();
     }
 }
 
-$pageTitle = 'สมัครสมาชิก';
-require_once __DIR__ . '/includes/header.php';
+$pageTitle = 'สมัครสมาชิก'; require __DIR__ . '/includes/header.php';
 ?>
-
-<div class="card" style="max-width:480px; margin:0 auto;">
-    <h2 class="page-title">สมัครสมาชิก</h2>
-    <p class="subtitle">สร้างบัญชีเพื่อเริ่มแชร์และดาวน์โหลดชีทสรุป</p>
-
-    <?php if (!empty($errors)): ?>
-        <div class="alert alert-error">
-            <?php foreach ($errors as $err): ?>
-                <div>• <?= e($err) ?></div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-
-    <form method="POST" action="register.php" novalidate>
-        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-
-        <label for="username">ชื่อผู้ใช้ (username)</label>
-        <input type="text" id="username" name="username" value="<?= e($old['username']) ?>" required maxlength="50">
-
-        <label for="email">อีเมล</label>
-        <input type="email" id="email" name="email" value="<?= e($old['email']) ?>" required maxlength="100">
-
-        <label for="full_name">ชื่อ-นามสกุล</label>
-        <input type="text" id="full_name" name="full_name" value="<?= e($old['full_name']) ?>" required maxlength="100">
-
-        <label for="password">รหัสผ่าน (อย่างน้อย 8 ตัวอักษร มีตัวเลขและตัวอักษร)</label>
-        <input type="password" id="password" name="password" required minlength="8" maxlength="100">
-
-        <label for="confirm_password">ยืนยันรหัสผ่าน</label>
-        <input type="password" id="confirm_password" name="confirm_password" required minlength="8" maxlength="100">
-
-        <button type="submit" class="btn" style="width:100%;">สมัครสมาชิก</button>
-    </form>
-    <p style="text-align:center; margin-top:14px; font-size:0.9rem;">
-        มีบัญชีอยู่แล้ว? <a href="login.php">เข้าสู่ระบบ</a>
-    </p>
-</div>
-
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<section class="auth-layout">
+<div class="auth-story"><div class="eyebrow">A little note. A big help.</div><h1>เริ่มต้นแบ่งปัน<br>ความรู้ดี ๆ</h1><p>เปลี่ยนสรุปที่คุณตั้งใจทำ ให้ช่วยเพื่อนอีกคน<br>สมัครสมาชิกเพื่อดาวน์โหลดชีทและส่งต่อความรู้</p><?php require __DIR__ . '/includes/paper_art.php'; ?></div>
+<div class="auth-form"><h2 class="page-title">สร้างบัญชีของคุณ</h2><p class="subtitle">มาเป็นส่วนหนึ่งของพื้นที่การเรียนรู้ด้วยกัน</p>
+<?php if ($errors): ?><div class="alert alert-error" role="alert"><?php foreach ($errors as $error): ?><div><?= e($error) ?></div><?php endforeach; ?></div><?php endif; ?>
+<form method="POST" action="register.php">
+<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+<label for="username">ชื่อผู้ใช้</label><input type="text" id="username" name="username" value="<?= e($old['username']) ?>" placeholder="เช่น studywithme" required minlength="4" maxlength="50" autocomplete="username"><p class="field-help">ตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ ความยาว 4–50 ตัวอักษร</p>
+<label for="email">อีเมล</label><input type="email" id="email" name="email" value="<?= e($old['email']) ?>" placeholder="you@example.com" required maxlength="100" autocomplete="email">
+<label for="full_name">ชื่อที่ต้องการแสดง</label><input type="text" id="full_name" name="full_name" value="<?= e($old['full_name']) ?>" placeholder="ชื่อของคุณ" required maxlength="100" autocomplete="name">
+<label for="password">รหัสผ่าน</label><div class="password-row"><input type="password" id="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="อย่างน้อย 8 ตัวอักษร"><button type="button" class="password-toggle" data-password-toggle="password" aria-label="แสดงรหัสผ่าน" aria-pressed="false"><?= icon('eye') ?></button></div><p class="field-help">มีทั้งตัวอักษรภาษาอังกฤษและตัวเลข สูงสุด 72 ไบต์</p>
+<label for="confirm_password">ยืนยันรหัสผ่าน</label><input type="password" id="confirm_password" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="กรอกรหัสผ่านอีกครั้ง">
+<button class="btn" type="submit">สมัครสมาชิก <?= icon('arrow') ?></button>
+</form><p class="auth-switch">มีบัญชีแล้ว? <a href="login.php">เข้าสู่ระบบ</a></p>
+</div></section>
+<?php require __DIR__ . '/includes/footer.php'; ?>

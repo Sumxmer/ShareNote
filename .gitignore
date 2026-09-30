@@ -4,16 +4,11 @@
 !.env.example
 
 # ไฟล์ที่ผู้ใช้อัปโหลดผ่านเว็บ (ไม่ต้องอยู่ใน git)
-uploads/*.pdf
-uploads/*.doc
-uploads/*.docx
-uploads/*.ppt
-uploads/*.pptx
-uploads/*.jpg
-uploads/*.jpeg
-uploads/*.png
+uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
 
 # log / temp
 *.log
 .DS_Store
+/tmp/

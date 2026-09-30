@@ -11,7 +11,7 @@ require_once __DIR__ . '/db.php';
 // เรียกใช้ทุกครั้งก่อนแสดงข้อมูลที่มาจากผู้ใช้ลงบน HTML
 // ------------------------------------------------------------------
 function e(?string $value): string {
-    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 // ------------------------------------------------------------------
@@ -20,6 +20,8 @@ function e(?string $value): string {
 // ------------------------------------------------------------------
 function log_security_event(mysqli $conn, ?int $userId, ?string $usernameAttempt, string $action, string $detail = ''): void {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $usernameAttempt = $usernameAttempt === null ? null : mb_substr($usernameAttempt, 0, 50);
+    $detail = mb_substr($detail, 0, 255);
     $stmt = $conn->prepare(
         "INSERT INTO security_logs (user_id, username_attempt, action, detail, ip_address) VALUES (?, ?, ?, ?, ?)"
     );
@@ -60,7 +62,7 @@ function is_login_locked_out(mysqli $conn, string $username, string $ip): bool {
 // ------------------------------------------------------------------
 function require_login(): void {
     if (empty($_SESSION['user_id'])) {
-        header('Location: login.php');
+        header('Location: ' . login_url());
         exit;
     }
 }
@@ -80,8 +82,7 @@ function is_admin(): bool {
 function require_admin(): void {
     require_login_admin_path();
     if (!is_admin()) {
-        http_response_code(403);
-        die('เฉพาะผู้ดูแลระบบเท่านั้นที่เข้าถึงหน้านี้ได้');
+        abort_request(403, 'เฉพาะผู้ดูแลระบบเท่านั้นที่เข้าถึงหน้านี้ได้');
     }
 }
 
@@ -107,7 +108,7 @@ function validate_email(string $email): ?string {
 
 function validate_password(string $p): ?string {
     if (strlen($p) < 8) return 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';
-    if (strlen($p) > 100) return 'รหัสผ่านยาวเกินไป';
+    if (strlen($p) > 72) return 'รหัสผ่านต้องไม่เกิน 72 ไบต์';
     if (!preg_match('/[A-Za-z]/', $p) || !preg_match('/[0-9]/', $p)) {
         return 'รหัสผ่านต้องมีทั้งตัวอักษรและตัวเลขอย่างน้อย 1 ตัว';
     }
@@ -164,65 +165,67 @@ function getOrCreateSubject(mysqli $conn, string $name): int {
 // ------------------------------------------------------------------
 // หมายเหตุท้ายเอกสาร: ตรวจสอบไฟล์อัปโหลด (Extension/MIME/ขนาด) + เปลี่ยนชื่อไฟล์
 // ------------------------------------------------------------------
-define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png']);
-define('ALLOWED_MIME_TYPES', [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'image/jpeg',
-    'image/png',
+define('UPLOAD_MIME_MAP', [
+    'pdf' => ['application/pdf'],
+    'doc' => ['application/msword', 'application/x-ole-storage', 'application/CDFV2'],
+    'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+    'ppt' => ['application/vnd.ms-powerpoint', 'application/x-ole-storage', 'application/CDFV2'],
+    'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip'],
+    'jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'], 'png' => ['image/png'],
 ]);
-define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10 MB
+define('ALLOWED_EXTENSIONS', array_keys(UPLOAD_MIME_MAP));
+define('MAX_FILE_SIZE', 10 * 1024 * 1024);
 
-/**
- * ตรวจสอบไฟล์อัปโหลดและคืนชื่อไฟล์ใหม่แบบสุ่มถ้าผ่าน (หรือคืน null พร้อม error message ถ้าไม่ผ่าน)
- */
 function validate_and_store_upload(array $file, string $uploadDir, ?string &$error): ?array {
-    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
-        $error = 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
-        return null;
+    foreach (['name', 'tmp_name'] as $key) {
+        if (!isset($file[$key]) || !is_string($file[$key])) {
+            $error = 'ข้อมูลไฟล์ไม่ถูกต้อง กรุณาเลือกไฟล์ใหม่'; return null;
+        }
     }
-
-    if ($file['size'] > MAX_FILE_SIZE) {
-        $error = 'ขนาดไฟล์ต้องไม่เกิน 10MB';
-        return null;
+    if (!isset($file['error']) || !is_int($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+        $error = 'อัปโหลดไม่สำเร็จ กรุณาเลือกไฟล์ขนาดไม่เกิน 10 MB'; return null;
     }
-
-    $originalName = $file['name'];
+    if (!is_uploaded_file($file['tmp_name'])) {
+        $error = 'ข้อมูลไฟล์ไม่ถูกต้อง'; return null;
+    }
+    $size = filesize($file['tmp_name']);
+    if ($size === false || $size < 1 || $size > MAX_FILE_SIZE) {
+        $error = 'ไฟล์ต้องมีข้อมูลและมีขนาดไม่เกิน 10 MB'; return null;
+    }
+    $originalName = basename(str_replace(chr(92), '/', $file['name']));
+    if ($originalName === '' || mb_strlen($originalName) > 255 || preg_match('/[\x00-\x1F\x7F]/', $originalName)) {
+        $error = 'ชื่อไฟล์ไม่ถูกต้องหรือยาวเกินไป'; return null;
+    }
     $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-
-    if (!in_array($ext, ALLOWED_EXTENSIONS, true)) {
-        $error = 'ชนิดไฟล์ไม่ได้รับอนุญาต (รองรับ: ' . implode(', ', ALLOWED_EXTENSIONS) . ')';
-        return null;
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    if (!isset(UPLOAD_MIME_MAP[$ext]) || !in_array($mime, UPLOAD_MIME_MAP[$ext], true)) {
+        $error = 'ชนิดไฟล์หรือเนื้อหาไฟล์ไม่ตรงกับที่อนุญาต'; return null;
     }
-
-    // ตรวจสอบ MIME type จริงของไฟล์ (ไม่เชื่อแค่ extension ที่ผู้ใช้ตั้งชื่อมา)
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-
-    if (!in_array($mime, ALLOWED_MIME_TYPES, true)) {
-        $error = 'ชนิดไฟล์ไม่ตรงกับที่อนุญาต (ตรวจสอบ MIME type ไม่ผ่าน)';
-        return null;
+    if (in_array($ext, ['docx', 'pptx'], true)) {
+        $zip = new ZipArchive();
+        if ($zip->open($file['tmp_name']) !== true) {
+            $error = 'เอกสาร Office ไม่ถูกต้อง'; return null;
+        }
+        $main = $ext === 'docx' ? 'word/document.xml' : 'ppt/presentation.xml';
+        $valid = $zip->locateName('[Content_Types].xml') !== false && $zip->locateName($main) !== false && $zip->numFiles <= 2000;
+        $expandedSize = 0;
+        for ($i = 0; $i < $zip->numFiles && $valid; $i++) {
+            $entry = $zip->statIndex($i);
+            $expandedSize += $entry['size'];
+            if ($expandedSize > 100 * 1024 * 1024 || preg_match('~(?:^|/)\.\.(?:/|$)|vbaProject\.bin$~i', $entry['name'])) $valid = false;
+        }
+        $zip->close();
+        if (!$valid) { $error = 'เอกสารไม่ตรงชนิดไฟล์หรือมีเนื้อหาที่ไม่อนุญาต'; return null; }
     }
-
-    // เปลี่ยนชื่อไฟล์ใหม่แบบสุ่มก่อนจัดเก็บ ป้องกัน path traversal / overwrite / เดาชื่อไฟล์
+    if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $image = @getimagesize($file['tmp_name']);
+        if (!$image || $image['mime'] !== $mime) { $error = 'ไฟล์รูปภาพไม่ถูกต้อง'; return null; }
+    }
     $newFileName = bin2hex(random_bytes(16)) . '.' . $ext;
-    $destination = rtrim($uploadDir, '/') . '/' . $newFileName;
-
-    if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        $error = 'ไม่สามารถบันทึกไฟล์ได้ กรุณาลองใหม่';
-        return null;
+    if (!move_uploaded_file($file['tmp_name'], rtrim($uploadDir, '/') . '/' . $newFileName)) {
+        $error = 'ไม่สามารถบันทึกไฟล์ได้ กรุณาลองใหม่'; return null;
     }
-
-    return [
-        'file_name'          => $newFileName,
-        'original_file_name' => $originalName,
-        'file_size'          => $file['size'],
-        'file_type'          => $ext,
-    ];
+    return ['file_name' => $newFileName, 'original_file_name' => $originalName, 'file_size' => $size, 'file_type' => $ext];
 }
 
 function flash(string $key, ?string $message = null) {
@@ -236,4 +239,65 @@ function flash(string $key, ?string $message = null) {
         return $msg;
     }
     return null;
+}
+
+// Reject arrays and invalid encodings before passing input into typed helpers.
+function input_text(array $source, string $key, string $default = ''): string {
+    $value = $source[$key] ?? $default;
+    if (!is_string($value) || !mb_check_encoding($value, 'UTF-8') || str_contains($value, chr(0))) {
+        abort_request(400, 'ข้อมูลที่ส่งมาไม่ถูกต้อง กรุณาตรวจสอบแล้วลองอีกครั้ง');
+    }
+    return $value;
+}
+function input_id(array $source, string $key, int $default = 0): int {
+    if (!array_key_exists($key, $source)) return $default;
+    $value = $source[$key];
+    if (!is_string($value) || !preg_match('/^[1-9][0-9]{0,9}$/D', $value) || (float)$value > 2147483647) {
+        abort_request(400, 'รหัสข้อมูลไม่ถูกต้อง');
+    }
+    return (int)$value;
+}
+function file_badge(string $type): string {
+    return in_array($type, ['jpg', 'jpeg', 'png'], true) ? 'image' : (in_array($type, ['doc', 'docx'], true) ? 'word' : (in_array($type, ['ppt', 'pptx'], true) ? 'slides' : 'pdf'));
+}
+function format_bytes(int $bytes): string {
+    return $bytes >= 1048576 ? number_format($bytes / 1048576, 1) . ' MB' : number_format($bytes / 1024, 1) . ' KB';
+}
+
+function icon(string $name): string {
+    $paths = [
+        'book' => '<path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z"/><path d="M20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h3z"/>',
+        'search' => '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
+        'arrow' => '<path d="M5 12h14m-6-6 6 6-6 6"/>',
+        'upload' => '<path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/>',
+        'download' => '<path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/>',
+        'shield' => '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/>',
+        'user' => '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+        'file' => '<path d="M5 3h9l5 5v13H5zM14 3v5h5M9 12h6m-6 4h6"/>',
+        'eye' => '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+        'clock' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        'comment' => '<path d="M4 4h16v13H9l-5 4zM8 9h8m-8 4h5"/>',
+        'grid' => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+        'logout' => '<path d="M9 4H4v16h5m2-8h10m-4-4 4 4-4 4"/>',
+    ];
+    return '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">' . ($paths[$name] ?? $paths['file']) . '</svg>';
+}
+
+// Refresh on every request, including public pages showing account controls.
+if (!empty($_SESSION['user_id'])) {
+    $authConn = getDbConnection();
+    $authStmt = $authConn->prepare('SELECT username, full_name, role, status FROM users WHERE user_id = ?');
+    $authStmt->bind_param('i', $_SESSION['user_id']);
+    $authStmt->execute();
+    $currentUser = $authStmt->get_result()->fetch_assoc();
+    $authStmt->close(); $authConn->close();
+    if (!$currentUser || $currentUser['status'] !== 'active') {
+        destroy_user_session();
+        header('Location: ' . login_url() . '?revoked=1'); exit;
+    }
+    if (($_SESSION['role'] ?? '') !== $currentUser['role']) {
+        session_regenerate_id(true);
+        unset($_SESSION['csrf_token']);
+    }
+    foreach (['username', 'full_name', 'role'] as $key) $_SESSION[$key] = $currentUser[$key];
 }

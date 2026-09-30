@@ -1,6 +1,4 @@
-</div>
-<footer style="text-align:center; color:#94a3b8; font-size:0.82rem; padding: 30px 0;">
-    NoteShare — CP423324 Database and Web Security Project &copy; <?= date('Y') ?>
-</footer>
+</main>
+<footer class="site-footer"><span><strong>NoteShare</strong> · ความรู้ดี ๆ เริ่มต้นที่การแบ่งปัน</span><span>CP423324 · Database and Web Security · <?= date('Y') ?></span></footer>
 </body>
 </html>

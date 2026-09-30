@@ -20,6 +20,8 @@
  * user ตัวนี้ถูกสร้าง + จำกัดสิทธิ์ให้แล้วโดย database/app_user_privileges.sql
  */
 
+require_once __DIR__ . '/errors.php';
+
 // ตั้งค่าการเชื่อมต่อ - อ่านจาก environment variable ก่อน (ตามที่ comment ข้างบนแนะนำ)
 // - รันด้วย Docker (docker-compose.yml) จะได้ DB_HOST = 'db' อัตโนมัติ ไม่ต้องแก้ไฟล์นี้
 // - รันบน XAMPP/Laragon ที่ไม่ได้ตั้ง env จะ fallback ไปใช้ค่า default ด้านล่าง
@@ -31,17 +33,20 @@ define('DB_PASS', getenv('DB_PASS') ?: 'ChangeThisPassword!123');
 define('DB_NAME', getenv('DB_NAME') ?: 'sheetapp_db');
 
 // ปิดการแสดง error ของ mysqli แบบ verbose ไปหน้าเว็บ (ข้อ 7: Error Handling)
-mysqli_report(MYSQLI_REPORT_OFF);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 function getDbConnection(): mysqli {
-    $conn = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
-
-    if ($conn->connect_error) {
-        // ไม่แสดงรายละเอียด error จริงของ DB ให้ผู้ใช้เห็น (ข้อ 7)
-        error_log('DB Connection Error: ' . $conn->connect_error);
-        die('ขณะนี้ระบบไม่สามารถให้บริการได้ กรุณาลองใหม่ภายหลัง');
+    if (strtolower(DB_USER) === 'root') {
+        error_log('Application database account must not be root.');
+        abort_request(503, 'ขณะนี้ระบบไม่สามารถให้บริการได้ กรุณาลองใหม่ภายหลัง');
     }
-
-    $conn->set_charset('utf8mb4');
-    return $conn;
+    try {
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+        $conn->set_charset('utf8mb4');
+        $conn->query("SET time_zone = '+07:00'");
+        return $conn;
+    } catch (mysqli_sql_exception $error) {
+        error_log('Database connection failed: ' . $error->getMessage());
+        abort_request(503, 'ขณะนี้ระบบไม่สามารถให้บริการได้ กรุณาลองใหม่ภายหลัง');
+    }
 }

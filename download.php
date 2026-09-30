@@ -6,10 +6,9 @@ require_login(); // ข้อ 2: ต้อง Login ก่อนดาวน์�
 
 $conn = getDbConnection();
 
-$noteId = (int)($_GET['id'] ?? 0);
+$noteId = input_id($_GET, 'id');
 if ($noteId <= 0) {
-    http_response_code(400);
-    die('คำขอไม่ถูกต้อง');
+    abort_request(400, 'คำขอไม่ถูกต้อง');
 }
 
 $stmt = $conn->prepare(
@@ -21,19 +20,18 @@ $note = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$note) {
-    http_response_code(404);
-    die('ไม่พบไฟล์ที่ต้องการ');
+    abort_request(404, 'ไม่พบไฟล์ที่ต้องการ');
 }
 
 // ใช้ชื่อไฟล์จาก DB เท่านั้น (ไม่รับ path จาก user โดยตรง) ป้องกัน Path Traversal
 $filePath = __DIR__ . '/uploads/' . basename($note['file_name']);
 
 if (!file_exists($filePath)) {
-    http_response_code(404);
-    die('ไม่พบไฟล์บนเซิร์ฟเวอร์');
+    abort_request(404, 'ไม่พบไฟล์บนเซิร์ฟเวอร์');
 }
 
 // อัปเดตตัวนับดาวน์โหลด + บันทึก log
+$conn->begin_transaction();
 $upd = $conn->prepare("UPDATE notes SET download_count = download_count + 1 WHERE note_id = ?");
 $upd->bind_param('i', $noteId);
 $upd->execute();
@@ -46,7 +44,9 @@ $ins->execute();
 $ins->close();
 
 log_security_event($conn, $_SESSION['user_id'], $_SESSION['username'], 'FILE_DOWNLOAD', "ดาวน์โหลด note_id={$noteId}");
+$conn->commit();
 $conn->close();
+session_write_close();
 
 // ส่งไฟล์กลับไปยังผู้ใช้
 $mimeTypes = [
@@ -59,7 +59,7 @@ $mimeTypes = [
 $mime = $mimeTypes[$note['file_type']] ?? 'application/octet-stream';
 
 header('Content-Type: ' . $mime);
-header('Content-Disposition: attachment; filename="' . basename($note['original_file_name']) . '"');
+header('Content-Disposition: attachment; filename="note.' . $note['file_type'] . '"; filename*=UTF-8\'\'' . rawurlencode($note['original_file_name']));
 header('Content-Length: ' . filesize($filePath));
 header('X-Content-Type-Options: nosniff');
 readfile($filePath);

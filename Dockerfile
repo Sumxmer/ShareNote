@@ -3,7 +3,9 @@ FROM php:8.3-apache
 
 # mysqli = เชื่อมต่อฐานข้อมูล (fileinfo เปิดมาให้อยู่แล้วใน image นี้)
 # mod_rewrite/headers = สำหรับ .htaccess ของโปรเจค
-RUN docker-php-ext-install mysqli pdo_mysql \
+RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev libzip-dev \
+    && docker-php-ext-install mysqli pdo_mysql mbstring zip \
+    && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite headers
 
 # สำคัญ: Debian/Apache ตั้ง AllowOverride เป็น None มาโดย default

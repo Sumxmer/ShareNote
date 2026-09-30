@@ -10,13 +10,13 @@ UPLOAD_DIR=/var/www/html/uploads
 
 if [ -d "$UPLOAD_DIR" ]; then
     chown -R www-data:www-data "$UPLOAD_DIR" 2>/dev/null || true
-    chmod -R 775 "$UPLOAD_DIR" 2>/dev/null || true
+    chmod -R 750 "$UPLOAD_DIR" 2>/dev/null || true
 
     if su -s /bin/sh www-data -c "test -w $UPLOAD_DIR"; then
         echo "[noteshare] uploads/ เขียนได้ปกติ"
     else
         echo "[noteshare] คำเตือน: www-data เขียนลง uploads/ ไม่ได้"
-        echo "[noteshare] ให้รันคำสั่งนี้บนเครื่อง host แล้ว restart: chmod -R 777 uploads"
+        echo "[noteshare] ให้รันคำสั่งนี้บนเครื่อง host แล้ว restart: chown -R www-data:www-data uploads && chmod -R 750 uploads"
     fi
 fi
 

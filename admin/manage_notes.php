@@ -14,45 +14,11 @@ $notes = $conn->query(
      ORDER BY n.created_at DESC"
 );
 
-$pageTitle = 'จัดการชีททั้งหมด';
-require_once __DIR__ . '/header.php';
+$pageTitle='จัดการชีททั้งหมด'; require __DIR__ . '/header.php';
 ?>
-
-<h2 class="page-title">จัดการชีททั้งหมดในระบบ</h2>
-<p class="subtitle">Admin สามารถดูและลบชีทของผู้ใช้ทุกคนได้ (ข้อ 3: Authorization)</p>
-
-<?php if ($successMsg): ?><div class="alert alert-success"><?= e($successMsg) ?></div><?php endif; ?>
-
-<div class="card">
-    <table>
-        <thead><tr><th>ชื่อชีท</th><th>เจ้าของ</th><th>วิชา</th><th>ดาวน์โหลด</th><th>สถานะ</th><th>วันที่</th><th>จัดการ</th></tr></thead>
-        <tbody>
-        <?php while ($n = $notes->fetch_assoc()): ?>
-            <tr>
-                <td><a href="../note_detail.php?id=<?= (int)$n['note_id'] ?>"><?= e($n['title']) ?></a></td>
-                <td><?= e($n['username']) ?></td>
-                <td><?= e($n['subject_name']) ?></td>
-                <td><?= (int)$n['download_count'] ?></td>
-                <td><?= $n['status'] === 'active' ? 'ปกติ' : 'ถูกลบ' ?></td>
-                <td><?= e(date('d/m/Y', strtotime($n['created_at']))) ?></td>
-                <td>
-                    <?php if ($n['status'] === 'active'): ?>
-                        <form action="../delete_note.php" method="POST" data-confirm="ยืนยันการลบชีทนี้ (โดย Admin)?">
-                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                            <input type="hidden" name="note_id" value="<?= (int)$n['note_id'] ?>">
-                            <button type="submit" class="btn btn-sm btn-danger">ลบ</button>
-                        </form>
-                    <?php else: ?>
-                        <span class="note-meta">-</span>
-                    <?php endif; ?>
-                </td>
-            </tr>
-        <?php endwhile; ?>
-        </tbody>
-    </table>
-</div>
-
-<?php
-$conn->close();
-require_once __DIR__ . '/footer.php';
-?>
+<div class="page-heading"><div><div class="eyebrow">Shared knowledge</div><h1 class="page-title">ชีทสรุปทั้งหมด</h1><p class="subtitle">ตรวจสอบและจัดการชีทที่สมาชิกแบ่งปันในระบบ</p></div><span class="count-label"><?= $notes->num_rows ?> รายการ</span></div>
+<?php if ($successMsg): ?><div class="alert alert-success" role="status"><?= e($successMsg) ?></div><?php endif; ?>
+<div class="card table-card"><div class="table-wrap"><table><thead><tr><th>ชีทสรุป</th><th>ผู้แบ่งปัน</th><th>ดาวน์โหลด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
+<?php if (!$notes->num_rows): ?><tr><td colspan="5" class="table-empty">ยังไม่มีชีทในระบบ</td></tr><?php endif; ?>
+<?php while ($note=$notes->fetch_assoc()): ?><tr><td><?php if ($note['status']==='active'): ?><a href="../note_detail.php?id=<?= (int)$note['note_id'] ?>"><?= e($note['title']) ?></a><?php else: ?><strong><?= e($note['title']) ?></strong><?php endif; ?><div class="note-meta"><?= e($note['subject_name']) ?> · <?= e(date('d/m/Y',strtotime($note['created_at']))) ?></div></td><td><?= e($note['username']) ?></td><td><?= number_format((int)$note['download_count']) ?></td><td><span class="badge <?= $note['status']==='active'?'':'badge-suspended' ?>"><?= $note['status']==='active'?'เผยแพร่':'ถูกนำออก' ?></span></td><td><?php if ($note['status']==='active'): ?><div class="actions"><a class="btn btn-sm btn-secondary" href="../edit_note.php?id=<?= (int)$note['note_id'] ?>">แก้ไข</a><form action="../delete_note.php" method="POST" data-confirm="ยืนยันการนำชีทนี้ออกจากการเผยแพร่?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="note_id" value="<?= (int)$note['note_id'] ?>"><button type="submit" class="btn btn-sm btn-danger">ลบ</button></form></div><?php else: ?><span class="note-meta">หยุดเผยแพร่แล้ว</span><?php endif; ?></td></tr><?php endwhile; ?></tbody></table></div></div>
+<?php $conn->close(); require __DIR__ . '/footer.php'; ?>

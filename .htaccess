@@ -6,7 +6,11 @@
 # จะอยู่ในเว็บรูทด้วย จึงต้องปิดกั้นไม่ให้ดาวน์โหลดได้
 # ============================================================
 
-<FilesMatch "\.(yml|yaml|sql|md|sh|ini|log|bak|old|env)$">
+RewriteEngine On
+RewriteRule (^|/)\. - [F]
+RewriteRule ^(?:tests|tmp)(?:/|$) - [F]
+
+<FilesMatch "\.(yml|yaml|sql|md|sh|ini|log|bak|old|env|py)$">
     Require all denied
 </FilesMatch>
 
