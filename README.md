@@ -1,73 +1,82 @@
-# NoteShare
+NoteShare 📚
+เว็บแชร์ชีทสรุปบทเรียนไว้ใช้อ่านสอบ ทำส่งโปรเจกต์ครับ พัฒนาด้วย Next.js 16 (App Router), React, TypeScript แล้วก็ใช้ Supabase ทำเป็น Backend + Database + Storage ครับ
 
-ระบบแบ่งปันชีทสรุปสำหรับทบทวนบทเรียน พัฒนาด้วย **Next.js 16 + React + TypeScript + Supabase** เปิดเว็บโดยไม่ต้องใช้ Docker
+วิธีรันโปรเจกต์บนเครื่อง (Local)
+เปิด PowerShell แล้วรันตามนี้ได้เลยครับ:
 
-## เริ่มต้น
-
-ต้องมี Node.js 22.13 ขึ้นไป แนะนำ Node.js 24 LTS
-
-```powershell
+PowerShell
 cd D:\notesharing
 npm install
 Copy-Item .env.example .env.local
-# ใส่ค่าของโปรเจกต์ Supabase ใน .env.local
+# อย่าลืมไปเอาค่า Config จาก Dashboard ของ Supabase มาใส่ใน .env.local ด้วยนะครับ
 npm run setup:storage
 npm run dev
-```
+เสร็จแล้วเปิดเบราว์เซอร์เข้า http://localhost:3000 ได้เลย ถ้ายังไม่ได้ผูก Supabase หน้าเว็บจะขึ้นเตือนให้ไปตั้งค่าก่อน (โปรเจกต์นี้ต่อ Database จริง ไม่มี Mock Data นะครับ)
 
-เปิด **http://localhost:3000** หากยังไม่ได้ตั้งค่า จะมีหน้าคำแนะนำให้เริ่มต้น ไม่มีข้อมูลสมมติหรือ backend จำลองแทน Supabase
+วิธีผูก Supabase ตั้งค่าตาราง ยืนยันอีเมล แล้วก็ตั้งสิทธิ์ Admin ลองดูในไฟล์ SUPABASE_SETUP.md ได้เลยครับ เขียนสรุปไว้ให้แล้ว
 
-อ่าน **[SUPABASE_SETUP.md](SUPABASE_SETUP.md)** สำหรับการสร้างโปรเจกต์ รัน migration ตั้งอีเมลยืนยัน และตั้ง Admin คนแรก
+ระบบทำอะไรได้บ้าง?
+คนทั่วไป (ยังไม่ล็อกอิน): เปิดหาชีท กรองตามหมวดวิชา เข้าไปอ่านรายละเอียดและดูคอมเมนต์ใต้ชีทได้
 
-## ฟังก์ชัน
+สมาชิก (ล็อกอินแล้ว):
 
-- ผู้เยี่ยมชม: ค้นหาชีท กรองรายวิชา ดูรายละเอียดและความคิดเห็น
-- สมาชิก: สมัคร/ยืนยันอีเมล/Login อัปโหลด ดาวน์โหลด แสดงความคิดเห็น แก้ไข/หยุดเผยแพร่ชีทของตน และลบความคิดเห็นของตน
-- ผู้ดูแล: ภาพรวมระบบ จัดการชีท/ความคิดเห็น ระงับหรือปลดระงับบัญชี และดู Security Logs
-- **ไม่มีปุ่มหรือ RPC เปลี่ยน role เป็น Admin** ต้องตั้งโดยผู้ดูแลโปรเจกต์ใน Supabase SQL Editor
-- Login ใช้อีเมล + รหัสผ่าน ชื่อผู้ใช้เป็นชื่ออ้างอิง/แสดงในชุมชน
-- รับไฟล์ PDF, DOC, DOCX, PPT, PPTX, JPG, JPEG, PNG ไม่เกิน 10 MiB ต่อไฟล์
-- อัปโหลดโดยตรงเข้า private staging ของ Supabase แล้วให้เซิร์ฟเวอร์ตรวจเนื้อหาก่อนเผยแพร่ จึงรองรับ 10 MiB บน Vercel
+สมัครสมาชิก ยืนยันตัวตนผ่านอีเมล
 
-## โครงสร้าง
+อัปโหลดชีทสรุป และโหลดชีทของคนอื่นได้
 
-```text
+คอมเมนต์ใต้ชีท ลบคอมเมนต์ตัวเอง หรือปิดการเผยแพร่ชีทของตัวเองได้
+
+Admin:
+
+มีหน้า Dashboard สรุปภาพรวม
+
+จัดการลบ/ซ่อนชีท ลบคอมเมนต์ที่ไม่เหมาะสม
+
+แบนหรือปลดแบนผู้ใช้งาน และดู Security Logs ได้
+
+หมายเหตุ: ในระบบไม่มีปุ่มกดตั้งใครเป็น Admin นะครับ เพื่อความปลอดภัย ถ้าจะให้ใครเป็น Admin ต้องไปแก้ role ผ่าน SQL Editor บน Supabase เอาเองครับ
+
+เงื่อนไขไฟล์และการอัปโหลด
+รองรับไฟล์: .pdf, .doc, .docx, .ppt, .pptx, .jpg, .jpeg, .png
+
+ขนาดไฟล์: ไม่เกิน 10 MB ต่อไฟล์
+
+เทคนิคที่ใช้: ยิงไฟล์ขึ้น Private Staging บน Supabase Storage ก่อน แล้วค่อยให้ฝั่งเซิร์ฟเวอร์ตรวจความถูกต้องอีกรอบถึงจะเปิดให้โหลด วิธีนี้ช่วยแก้ปัญหา Payload Size เกิน 4.5 MB ของ Vercel Serverless Function ได้ครับ
+
+โครงสร้างโฟลเดอร์หลักๆ
+Plaintext
 src/
-  app/                  หน้าจอ Next.js App Router และ Server Actions
-    admin/              ภาพรวม ผู้ใช้ ชีท และ Logs
-    auth/               ยืนยันอีเมลและ callback ของ Supabase
-    download/[id]/      ส่งไฟล์หลังตรวจบัญชีและ download ticket
-    globals.css         รูปแบบ UX/UI กลาง
-  components/           เมนู ฟอร์ม ปุ่ม การ์ด และองค์ประกอบร่วม
-  lib/
-    supabase/server.ts  เชื่อม Supabase ฝั่งเซิร์ฟเวอร์
-    auth.ts             ตรวจบัญชี สถานะ และบทบาท
-    tokens.ts           ลงลายเซ็น Activity Cookie / download ticket
-    uploads.ts          ตรวจไฟล์ก่อนเก็บใน Storage
-    upload-ticket.ts    ลงลายเซ็นคำขออัปโหลดที่ผูกกับสมาชิกและไฟล์
-    validation.ts      ตรวจข้อมูลฟอร์ม
-    data.ts             อ่านข้อมูลและค้นหาชีท
-  proxy.ts              refresh Auth Cookie, idle timeout, CSP nonce
-supabase/migrations/    SQL สร้างตาราง RLS และ RPC
-tests/next/             ทดสอบ PostgreSQL/RLS และ security helpers
-legacy/php/             โค้ด PHP/MySQL เดิม เก็บไว้อ้างอิง
-uploads/                ไฟล์อัปโหลดเดิม ยังไม่ได้ย้ายไป Supabase
-```
+  app/                  พวกหน้า UI (Next.js App Router) กับ Server Actions
+    admin/              หน้าจัดการของผู้ดูแลระบบ (ดูสถิติ, จัดการ User, ดู Logs)
+    auth/               หน้าระบบล็อกอิน และพวก Callback ยืนยันอีเมล
+    download/[id]/      ตัวจัดการจ่ายไฟล์ดาวน์โหลด (ตรวจสิทธิ์ก่อนปล่อยไฟล์)
+    globals.css         ไฟล์ CSS กลาง
+  components/           พวก UI ทั่วไป เช่น ปุ่ม การ์ด ฟอร์ม Navbar
+  lib/                  ฟังก์ชันช่วยเหลือต่างๆ
+    supabase/server.ts  ตัวเชื่อม Supabase ฝั่ง Server
+    auth.ts             ฟังก์ชันเช็กสิทธิ์และสถานะบัญชี
+    tokens.ts           ทำ Cookie กับ Download Ticket
+    uploads.ts          ตรวจความถูกต้องของไฟล์
+    upload-ticket.ts    ทำ Ticket ยืนยันการอัปโหลดของ User
+    validation.ts       ตรวจความถูกต้องของข้อมูลใน Form (Validation)
+    data.ts             พวกคำสั่ง Query ดึงข้อมูลชีท
+  proxy.ts              ตัวจัดการ Cookie, ดักจับ Session Timeout, ทำ CSP Nonce
+supabase/migrations/    ไฟล์ Migration สร้าง Table, RLS, และ RPC ใน PostgreSQL
+tests/next/             ไฟล์ Unit Test และ Integration Test
+legacy/php/             โค้ดเก่าตอนทำด้วย PHP/MySQL เก็บไว้ดูอ้างอิงเฉยๆ ครับ
+uploads/                โฟลเดอร์ไฟล์อัปโหลดเดิม (ยังไม่ได้โยกขึ้น Cloud)
+ความปลอดภัย (Security)
+ระบบ Auth ใช้ของ Supabase ทำงานคู่กับ HttpOnly Cookie ป้องกัน XSS
 
-## Security
+มี Idle Timeout ตัด Session อัตโนมัติถ้าไม่มีการใช้งานเกิน 30 นาที
 
-ใช้ Supabase Auth, HttpOnly Cookies, idle timeout 30 นาที, Next.js Server Actions, React output escaping, CSP nonce, Row Level Security และ RPC ที่ตรวจสิทธิ์ในฐานข้อมูล Secret Key ใช้เฉพาะเซิร์ฟเวอร์สำหรับไฟล์ใน private bucket และ authentication logging ไม่ส่งให้ client
+ฐานข้อมูลตั้งค่า Row Level Security (RLS) ล็อกสิทธิ์ระดับแถวข้อมูล และเช็กสิทธิ์ซ้ำผ่าน RPC
 
-ตารางของแอปมี 6 ตาราง: profiles, subjects, notes, comments, download_logs, security_logs ส่วน auth.users เป็นตารางที่ Supabase ดูแลรหัสผ่านและตัวตน
+จัดการ Secret Key ไว้ฝั่ง Server ทั้งหมด ไม่หลุดไปที่ Client
 
-## การตรวจสอบ
+มีทั้งหมด 6 ตารางหลัก: profiles, subjects, notes, comments, download_logs, security_logs (ส่วนข้อมูลล็อกอินเก็บใน auth.users ของ Supabase)
 
-```powershell
+ทดสอบโค้ดก่อนส่งงาน
+PowerShell
 npm run check
-```
-
-ตรวจ lint, TypeScript, tests และ production build ชุดทดสอบไม่ใช้ Docker และยังต้องทดสอบ Auth/Storage กับโปรเจกต์ Supabase จริงเมื่อใส่คีย์
-
-## หมายเหตุการย้ายระบบ
-
-โค้ดและฐานข้อมูลเดิมไม่ได้ถูกย้ายเข้า Supabase อัตโนมัติ คู่มือและ PDF เดิมยังอ้างอิง PHP/MySQL อ่านรายละเอียดใน SUPABASE_SETUP.md ก่อนใช้ข้อมูลหรือเอกสารเดิมกับระบบใหม่
+คำสั่งนี้จะรันทั้ง Lint, เช็ก TypeScript, รัน Tests แล้วลอง Build โปรเจกต์รอบนึง เพื่อดูว่ามี Error ตรงไหนก่อน Deploy ครับ
