@@ -7,6 +7,12 @@ import { createNoteAction, type ActionState } from '@/app/actions';
 import { prepareUploadAction } from '@/app/upload-actions';
 import { uploadName, STAGING_BUCKET } from '@/lib/upload-policy';
 
+function storageFailure(error: unknown): ActionState {
+  const details = error as { name?: string; statusCode?: string; code?: string };
+  console.warn('[NoteShare:storage-upload]', { name: details?.name, statusCode: details?.statusCode, code: details?.code });
+  return { error: 'อัปโหลดไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่' };
+}
+
 export function UploadForm({ children, url, publishableKey }: { children: ReactNode; url: string; publishableKey: string }) {
   async function publish(previous: ActionState, data: FormData): Promise<ActionState> {
     const file = data.get('file');
@@ -18,8 +24,8 @@ export function UploadForm({ children, url, publishableKey }: { children: ReactN
     try {
       // Send bytes so multipart File MIME cannot override the staging content type.
       const uploaded = await storage.from(STAGING_BUCKET).uploadToSignedUrl(prepared.path, prepared.token, await file.arrayBuffer(), { contentType: 'application/octet-stream' });
-      if (uploaded.error) return { error: 'อัปโหลดไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่' };
-    } catch { return { error: 'อัปโหลดไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่' }; }
+      if (uploaded.error) return storageFailure(uploaded.error);
+    } catch (error) { return storageFailure(error); }
     // Only the small signed ticket and text fields traverse the Vercel function.
     data.delete('file'); data.set('upload_ticket', prepared.ticket);
     return createNoteAction(previous, data);
