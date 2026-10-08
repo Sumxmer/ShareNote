@@ -5,12 +5,14 @@ import { requireUser } from '@/lib/auth';
 import { supabaseService } from '@/lib/supabase/server';
 import { uploadName, STAGING_BUCKET } from '@/lib/upload-policy';
 import { uploadTicket } from '@/lib/upload-ticket';
+import { approvalReady } from '@/lib/data';
 
 export async function prepareUploadAction(name: string, size: number): Promise<
   { error: string } | { path: string; token: string; ticket: string }
 > {
   const user = await requireUser();
   try {
+    if (!await approvalReady()) return { error: 'ระบบตรวจสอบชีทกำลังเตรียมพร้อม กรุณาลองใหม่ภายหลัง' };
     const clean = uploadName(name, size);
     const path = `${user.user_id}/${randomUUID()}`;
     // Client receives a scoped write capability for staging only, never for published files.

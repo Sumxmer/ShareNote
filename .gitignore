@@ -25,6 +25,7 @@ coverage/
 playwright-report/
 test-results/
 output/
+supabase/.temp/
 legacy/php/uploads/*
 !legacy/php/uploads/.gitkeep
 !legacy/php/uploads/.htaccess

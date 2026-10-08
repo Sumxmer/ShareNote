@@ -4,6 +4,7 @@ import { findNote } from '@/lib/data';
 import { positiveId } from '@/lib/validation';
 import { ticketValid } from '@/lib/tokens';
 import { supabaseServer, supabaseService } from '@/lib/supabase/server';
+import { canDownloadNote } from '@/lib/note-status';
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const headers = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   let id: number;
   try { id = positiveId((await context.params).id); } catch { return new Response('ไม่พบไฟล์',{ status: 404,headers }); }
   if (!ticketValid(request.nextUrl.searchParams.get('ticket') || '',user.user_id,id,process.env.APP_SESSION_SECRET!)) return new Response('ลิงก์หมดอายุ กรุณากดดาวน์โหลดจากหน้าชีทอีกครั้ง',{ status: 403,headers });
-  const note = await findNote(id); if (!note) return new Response('ไม่พบไฟล์',{ status: 404,headers });
+  const note = await findNote(id); if (!note || !canDownloadNote(note.status, user.role)) return new Response('ไม่พบไฟล์',{ status: 404,headers });
   const stored = await supabaseService().storage.from('notes').download(note.object_path);
   if (stored.error || !stored.data) { console.error('[NoteShare:download]',stored.error); return new Response('ไม่สามารถดาวน์โหลดได้ กรุณาลองใหม่',{ status: 503,headers }); }
   const logged = await (await supabaseServer()).rpc('record_download',{ p_note_id: id });

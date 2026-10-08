@@ -30,5 +30,5 @@ export function UploadForm({ children, url, publishableKey }: { children: ReactN
     data.delete('file'); data.set('upload_ticket', prepared.ticket);
     return createNoteAction(previous, data);
   }
-  return <ActionForm action={publish} label="เผยแพร่ชีท">{children}</ActionForm>;
+  return <ActionForm action={publish} label="ส่งชีทให้ผู้ดูแลตรวจสอบ">{children}</ActionForm>;
 }

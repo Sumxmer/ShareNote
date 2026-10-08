@@ -9,7 +9,7 @@ export const registerSchema = z.object({
   password: z.string().refine(v => Buffer.byteLength(v, 'utf8') >= 8 && Buffer.byteLength(v, 'utf8') <= 72 && /[A-Za-z]/.test(v) && /[0-9]/.test(v)),
   confirm_password: z.string(),
 }).refine(v => v.password === v.confirm_password, { message: 'รหัสผ่านยืนยันไม่ตรงกัน', path: ['confirm_password'] });
-export const loginSchema = z.object({ email: z.email().max(100).transform(v => v.toLowerCase()), password: z.string().min(1).max(200) });
+export const loginSchema = z.object({ username: z.string().trim().regex(/^[A-Za-z0-9_]{4,50}$/), password: z.string().min(1).max(200) });
 export const commentSchema = clean(1, 1000);
 export function formText(data: FormData, name: string): string {
   const value = data.get(name);

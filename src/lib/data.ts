@@ -4,7 +4,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 export type Note = {
   note_id: number; user_id: string; subject_id: number; title: string; description: string;
   object_path: string; original_file_name: string; file_size: number; file_type: string; mime_type: string;
-  download_count: number; status: 'active' | 'removed'; created_at: string; updated_at: string;
+  download_count: number; status: 'active' | 'pending' | 'rejected' | 'removed'; created_at: string; updated_at: string;
   username: string; full_name: string; subject_name: string;
 };
 export type Subject = { subject_id: number; subject_name: string };
@@ -12,7 +12,7 @@ export type Comment = { comment_id: number; user_id: string; content: string; cr
 export type SecurityLog = { log_id: number; user_id: string | null; username_attempt: string | null; action: string; detail: string; ip_address: string | null; created_at: string };
 
 export function checkDb(error: { message: string; code?: string } | null, context: string) {
-  if (error) { console.error(`[NoteShare:${context}]`, error); throw new Error('ระบบไม่สามารถอ่านข้อมูลได้ กรุณาลองใหม่หรือตรวจสอบการตั้งค่า Supabase'); }
+  if (error) { console.error(`[NoteShare:${context}]`, error); throw new Error('ระบบไม่สามารถอ่านข้อมูลได้ กรุณาลองใหม่ภายหลัง'); }
 }
 export async function searchNotes(q: string, subject: number | null, page: number) {
   const db = await supabaseServer();
@@ -29,9 +29,15 @@ export async function searchNotes(q: string, subject: number | null, page: numbe
 }
 export async function findNote(id: number) {
   const db = await supabaseServer();
-  const result = await db.from('note_catalog').select('*').eq('note_id', id).eq('status', 'active').maybeSingle();
+  // RLS exposes unpublished notes only to their owner and active administrators.
+  const result = await db.from('note_catalog').select('*').eq('note_id', id).neq('status', 'removed').maybeSingle();
   checkDb(result.error, 'note');
   return result.data as Note | null;
+}
+export async function approvalReady() {
+  const result = await (await supabaseServer()).rpc('my_stats');
+  checkDb(result.error, 'approval-ready');
+  return result.data != null && typeof result.data.pending === 'number';
 }
 export async function noteComments(id: number) {
   const db = await supabaseServer();

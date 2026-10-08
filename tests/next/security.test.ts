@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { activityToken, activityValid, downloadTicket, ticketValid, IDLE_TIMEOUT_MS } from '@/lib/tokens';
-import { registerSchema, noteSchema, positiveId, localPath, formText } from '@/lib/validation';
+import { registerSchema, loginSchema, noteSchema, positiveId, localPath, formText } from '@/lib/validation';
+import { canDownloadNote } from '@/lib/note-status';
 import { inspectUpload, MAX_FILE_SIZE } from '@/lib/uploads';
 import AdmZip from 'adm-zip';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -27,6 +28,19 @@ describe('signed sessions and download tickets', () => {
 });
 
 describe('validation and output encoding', () => {
+  it('accepts username login and rejects email login and injected usernames', () => {
+    expect(loginSchema.safeParse({ username: 'student_1', password: 'StudyTest123' }).success).toBe(true);
+    expect(loginSchema.safeParse({ username: 'student@example.com', password: 'StudyTest123' }).success).toBe(false);
+    expect(loginSchema.safeParse({ username: "' OR 1=1--", password: 'StudyTest123' }).success).toBe(false);
+  });
+  it('limits unpublished downloads to administrator review', () => {
+    for (const status of ['pending','rejected'] as const) {
+      expect(canDownloadNote(status,'user')).toBe(false);
+      expect(canDownloadNote(status,'admin')).toBe(true);
+    }
+    expect(canDownloadNote('active','user')).toBe(true);
+    expect(canDownloadNote('removed','admin')).toBe(false);
+  });
   const valid = { username: 'student_1',email: 'student@example.com',full_name: 'นักศึกษาทดสอบ',password: 'StudyTest123',confirm_password: 'StudyTest123' };
   it('accepts Thai names and a valid registration', () => expect(registerSchema.safeParse(valid).success).toBe(true));
   it('rejects passwords exceeding 72 bytes', () => expect(registerSchema.safeParse({ ...valid,password: 'Ab1'+'ก'.repeat(24),confirm_password: 'Ab1'+'ก'.repeat(24) }).success).toBe(false));

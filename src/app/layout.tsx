@@ -6,5 +6,5 @@ export const metadata: Metadata = { title: { default: 'NoteShare · แบ่ง
 export const dynamic = 'force-dynamic';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="th" data-scroll-behavior="smooth"><body><a href="#main" className="skip-link">ข้ามไปเนื้อหา</a><Navigation/><main className="container" id="main">{children}</main><footer className="site-footer"><span><strong>NoteShare</strong> · ความรู้ดี ๆ เริ่มต้นที่การแบ่งปัน</span><span>Next.js + Supabase · {new Date().getFullYear()}</span></footer></body></html>;
+  return <html lang="th" data-scroll-behavior="smooth"><body><a href="#main" className="skip-link">ข้ามไปเนื้อหา</a><Navigation/><main className="container" id="main">{children}</main><footer className="site-footer"><span><strong>NoteShare</strong> · ความรู้ดี ๆ เริ่มต้นที่การแบ่งปัน</span><span>© {new Date().getFullYear()} NoteShare</span></footer></body></html>;
 }
