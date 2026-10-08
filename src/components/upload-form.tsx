@@ -16,7 +16,8 @@ export function UploadForm({ children, url, publishableKey }: { children: ReactN
     if ('error' in prepared) return prepared;
     const storage = createClient(url, publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }).storage;
     try {
-      const uploaded = await storage.from(STAGING_BUCKET).uploadToSignedUrl(prepared.path, prepared.token, file, { contentType: 'application/octet-stream' });
+      // Send bytes so multipart File MIME cannot override the staging content type.
+      const uploaded = await storage.from(STAGING_BUCKET).uploadToSignedUrl(prepared.path, prepared.token, await file.arrayBuffer(), { contentType: 'application/octet-stream' });
       if (uploaded.error) return { error: 'อัปโหลดไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่' };
     } catch { return { error: 'อัปโหลดไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่' }; }
     // Only the small signed ticket and text fields traverse the Vercel function.
