@@ -59,6 +59,8 @@ UPDATE users SET role = 'admin' WHERE username = 'your_username';
 ```
 4. Logout แล้ว login ใหม่ในเว็บ จะเห็นเมนู 🛠 Admin
 
+หน้าจัดการผู้ใช้ในเว็บรองรับเฉพาะการระงับ/ปลดระงับบัญชี ไม่สามารถตั้งหรือลดบทบาท Admin ผ่านหน้าเว็บได้ การเปลี่ยนบทบาทต้องทำโดยตรงในฐานข้อมูล
+
 > ถ้าอยากใช้ command line แทน: `docker compose exec db mysql -u root -p sheetapp_db` (ใส่รหัส root ตามใน `.env`)
 
 ## คำสั่งที่ใช้บ่อย

@@ -12,3 +12,19 @@ uploads/*
 *.log
 .DS_Store
 /tmp/
+
+# Next.js / local credentials
+node_modules/
+.next/
+.vercel/
+out/
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+output/
+legacy/php/uploads/*
+!legacy/php/uploads/.gitkeep
+!legacy/php/uploads/.htaccess

@@ -1,0 +1,13 @@
+.env
+.env.*
+.git
+.next
+node_modules
+legacy
+uploads
+output
+tmp
+tests
+coverage
+*.log
+*.tsbuildinfo

@@ -166,6 +166,11 @@ def run(args):
             client.login(username)
         owner, other, admin = clients.values()
         expect(other.request("admin/manage_users.php")[0] == 403, "ordinary user cannot access administration")
+        users_page = admin.request("admin/manage_users.php")[1]
+        expect('value="toggle_role"' not in users_page and 'ตั้งเป็น Admin' not in users_page and 'ลดเป็น User' not in users_page, "user management has no role-changing controls")
+        other_id = sql("SELECT user_id FROM users WHERE username='student_two'")
+        rejected = admin.request("admin/manage_users.php", {"csrf_token": admin.token("admin/manage_users.php"), "user_id": other_id, "action": "toggle_role"})
+        expect(rejected[0] == 400 and sql(f"SELECT role FROM users WHERE user_id={other_id}") == "user", "forged admin promotion rejected without changing role")
         upload = owner.upload("Security regression note", name="ชีทเรียน.pdf")
         expect(upload[3].endswith("dashboard.php"), "valid PDF upload succeeds")
         note_id = int(sql("SELECT note_id FROM notes WHERE title='Security regression note'"))
@@ -215,7 +220,8 @@ def run(args):
         expect(other.request(f"note_detail.php?id={note_id}", {"csrf_token": other.token("dashboard.php"), "action": "add_comment", "content": "hidden comment"})[0] == 404, "removed note cannot receive comments")
         expect(sql(f"SELECT COUNT(*) FROM comments WHERE note_id={note_id}") == before, "no hidden comment was written")
 
-        # Exercise revocation through real admin POST handlers, using existing sessions.
+        # Exercise status revocation through the admin handler and role refresh
+        # after maintenance through the database, using existing sessions.
         uid = sql("SELECT user_id FROM users WHERE username='student_one'")
         admin.request("admin/manage_users.php", {"csrf_token": admin.token("admin/manage_users.php"), "user_id": uid, "action": "toggle_status"})
         expect("revoked=1" in owner.request("dashboard.php")[3], "suspension revokes an existing session")
@@ -223,7 +229,9 @@ def run(args):
         sql("UPDATE users SET role='admin' WHERE username='student_two'")
         expect(other.request("admin/index.php")[0] == 200, "role promotion refreshed on next request")
         admin_id = sql("SELECT user_id FROM users WHERE username='demo_admin'")
-        other.request("admin/manage_users.php", {"csrf_token": other.token("admin/manage_users.php"), "user_id": admin_id, "action": "toggle_role"})
+        rejected = other.request("admin/manage_users.php", {"csrf_token": other.token("admin/manage_users.php"), "user_id": admin_id, "action": "toggle_role"})
+        expect(rejected[0] == 400 and sql(f"SELECT role FROM users WHERE user_id={admin_id}") == "admin", "forged admin demotion rejected without changing role")
+        sql("UPDATE users SET role='user' WHERE username='demo_admin'")
         expect(admin.request("admin/manage_users.php")[0] == 403, "demotion revokes existing admin permissions")
         sql("UPDATE users SET role='admin' WHERE username='demo_admin'")
         sql("UPDATE users SET role='user' WHERE username='student_two'")
@@ -236,7 +244,7 @@ def run(args):
             failed.request("login.php", {"csrf_token": failed.token("login.php"), "username": "unknown_user", "password": "wrong"})
         expect(failed.request("login.php", {"csrf_token": failed.token("login.php"), "username": "student_two", "password": PASSWORD})[0] == 429, "brute-force limit rejects further login attempts")
         actions = set(sql("SELECT DISTINCT action FROM security_logs").splitlines())
-        expect({"LOGIN_SUCCESS", "LOGIN_FAILED", "ACCOUNT_LOCKOUT", "NOTE_CREATE", "NOTE_UPDATE", "NOTE_DELETE", "COMMENT_CREATE", "COMMENT_DELETE", "FILE_UPLOAD", "FILE_DOWNLOAD", "ADMIN_USER_STATUS_CHANGE", "ADMIN_ROLE_CHANGE"}.issubset(actions), "all security events persisted")
+        expect({"LOGIN_SUCCESS", "LOGIN_FAILED", "ACCOUNT_LOCKOUT", "NOTE_CREATE", "NOTE_UPDATE", "NOTE_DELETE", "COMMENT_CREATE", "COMMENT_DELETE", "FILE_UPLOAD", "FILE_DOWNLOAD", "ADMIN_USER_STATUS_CHANGE"}.issubset(actions), "all security events persisted")
         sql("UPDATE security_logs SET created_at=NOW()-INTERVAL 16 MINUTE WHERE action='LOGIN_FAILED'")
         owner = Client(base); owner.login("student_one")
         logs = admin.request("admin/security_logs.php?action=LOGIN_FAILED")
