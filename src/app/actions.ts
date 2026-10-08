@@ -178,5 +178,5 @@ export async function requestDownloadAction(data: FormData) {
   const id = positiveId(formText(data,'note_id'));
   if (!await findNote(id)) redirect('/not-found');
   const ticket = downloadTicket(user.user_id,id,process.env.APP_SESSION_SECRET!);
-  redirect(`/download/${id}?ticket=${encodeURIComponent(ticket)}`);
+  return { url: `/download/${id}?ticket=${encodeURIComponent(ticket)}` };
 }
